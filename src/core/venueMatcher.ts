@@ -26,9 +26,13 @@ export interface MatchResult {
   candidates: VenueCandidate[];
   /** Where the top candidate came from, for UI hints and tests. */
   source: MatchSource;
+  /** True when lookup was enabled but the search threw or timed out (as opposed to finding nothing). */
+  lookupFailed: boolean;
 }
 
-const DEFAULTS = { maxCandidates: 3, searchRadiusM: 75, knownRadiusM: 150, timeoutMs: 12_000 };
+// The timeout must exceed the sum of the source's own per-endpoint timeouts so a backup
+// endpoint gets its turn before the matcher gives up.
+const DEFAULTS = { maxCandidates: 3, searchRadiusM: 75, knownRadiusM: 150, timeoutMs: 20_000 };
 /** A venue the user has visited before ranks as if it were this much closer (m). */
 const KNOWN_BOOST_M = 40;
 
@@ -89,11 +93,13 @@ export async function matchVenue(
   const neighborhood = nearestNeighborhood(lat, lon);
 
   let found: VenueCandidate[] = [];
+  let lookupFailed = false;
   if (o.lookupEnabled) {
     try {
       found = await withTimeout(source.search(lat, lon, o.searchRadiusM), o.timeoutMs);
     } catch {
       found = [];
+      lookupFailed = true;
     }
   }
 
@@ -127,7 +133,7 @@ export async function matchVenue(
   nearbyKnown.forEach(push);
 
   if (result.length > 0) {
-    return { candidates: result, source: ranked.length > 0 ? 'search' : 'known' };
+    return { candidates: result, source: ranked.length > 0 ? 'search' : 'known', lookupFailed };
   }
 
   return {
@@ -144,5 +150,6 @@ export async function matchVenue(
       },
     ],
     source: 'unknown',
+    lookupFailed,
   };
 }

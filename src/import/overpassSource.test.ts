@@ -89,4 +89,43 @@ describe('createOverpassSource', () => {
     const src = createOverpassSource({ fetchFn, minIntervalMs: 0 });
     await expect(src.search(LAT, LON, 75)).rejects.toThrow();
   });
+
+  it('times out a hung endpoint and then tries the backup', async () => {
+    // First call hangs until the per-endpoint timeout aborts it; the second succeeds.
+    const calls: string[] = [];
+    const impl = vi.fn<typeof fetch>((url, init) => {
+      calls.push(String(url));
+      if (calls.length === 1) {
+        return new Promise((_r, reject) => {
+          init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')));
+        });
+      }
+      return Promise.resolve(new Response(JSON.stringify(sample), { status: 200 }));
+    });
+    const src = createOverpassSource({ fetchFn: impl, minIntervalMs: 0, timeoutMs: 30 });
+    const out = await src.search(LAT, LON, 75);
+    expect(out).toHaveLength(2);
+    expect(new Set(calls).size).toBe(2);
+  });
+
+  it('stops calling the servers after repeated failures, then recovers after the cooldown', async () => {
+    let clock = 0;
+    const fetchFn = vi.fn(async () => new Response('no', { status: 500 }));
+    const src = createOverpassSource({
+      fetchFn,
+      minIntervalMs: 0,
+      maxConsecutiveFailures: 2,
+      cooldownMs: 1000,
+      now: () => clock,
+    });
+    await expect(src.search(LAT, LON, 75)).rejects.toThrow();
+    await expect(src.search(LAT + 0.01, LON, 75)).rejects.toThrow();
+    const callsAfterTrip = fetchFn.mock.calls.length;
+    await expect(src.search(LAT + 0.02, LON, 75)).rejects.toThrow(/skipped/);
+    expect(fetchFn.mock.calls.length).toBe(callsAfterTrip); // no network while blocked
+
+    clock = 1500;
+    fetchFn.mockImplementation(async () => new Response(JSON.stringify(sample), { status: 200 }));
+    await expect(src.search(LAT + 0.03, LON, 75)).resolves.toHaveLength(2);
+  });
 });

@@ -24,6 +24,8 @@ export interface ImportProgress {
 export interface ImportSummary extends ImportProgress {
   /** New triage cards created. */
   candidates: number;
+  /** Meals whose venue lookup failed (server unreachable or timed out), so names must be typed. */
+  lookupFailures: number;
   /** Set when the run stopped early (cancelled or the classifier kept failing). */
   stoppedReason?: 'cancelled' | 'classifier-failed';
 }
@@ -157,11 +159,13 @@ export async function runImport(
 
   const knownVenues = await deps.repo.listVenues();
   const candidates: MealCandidate[] = [];
+  let lookupFailures = 0;
   for (const cluster of clusters) {
     const match = await matchVenue(cluster.lat, cluster.lon, deps.venueSource, {
       lookupEnabled: deps.lookupEnabled,
       knownVenues,
     });
+    if (match.lookupFailed) lookupFailures += 1;
     candidates.push({
       id: newId(),
       date: cluster.start,
@@ -178,5 +182,5 @@ export async function runImport(
 
   p.phase = 'done';
   emit();
-  return { ...p, candidates: candidates.length, stoppedReason };
+  return { ...p, candidates: candidates.length, lookupFailures, stoppedReason };
 }

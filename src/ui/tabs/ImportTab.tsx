@@ -143,6 +143,13 @@ function ImportRun() {
                 {state.summary.skippedAlreadyScanned > 0 &&
                   ` ${state.summary.skippedAlreadyScanned} were already scanned.`}
               </div>
+              {state.summary.lookupFailures > 0 && (
+                <div className="small" style={{ marginTop: 6 }} role="alert">
+                  Couldn&apos;t reach the restaurant lookup for {state.summary.lookupFailures}{' '}
+                  {state.summary.lookupFailures === 1 ? 'meal' : 'meals'}, so you&apos;ll type those names
+                  while reviewing.
+                </div>
+              )}
             </div>
           </div>
         )}

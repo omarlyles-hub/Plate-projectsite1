@@ -59,7 +59,12 @@ interface Options {
   fetchFn?: typeof fetch;
   /** Minimum spacing between requests, to be polite to the public servers. */
   minIntervalMs?: number;
+  /** Per-endpoint timeout. Two endpoints must fit inside the matcher's overall timeout. */
   timeoutMs?: number;
+  /** After this many consecutive failed lookups the source stops trying for `cooldownMs`. */
+  maxConsecutiveFailures?: number;
+  cooldownMs?: number;
+  now?: () => number;
 }
 
 /**
@@ -69,10 +74,17 @@ interface Options {
 export function createOverpassSource(options: Options = {}): VenueSource {
   const fetchFn = options.fetchFn ?? ((...a: Parameters<typeof fetch>) => fetch(...a));
   const minInterval = options.minIntervalMs ?? 1000;
-  const timeoutMs = options.timeoutMs ?? 12_000;
+  const timeoutMs = options.timeoutMs ?? 8_000;
+  const maxFailures = options.maxConsecutiveFailures ?? 2;
+  const cooldownMs = options.cooldownMs ?? 60_000;
+  const clock = options.now ?? Date.now;
   const cache = new Map<string, VenueCandidate[]>();
   let chain: Promise<unknown> = Promise.resolve();
   let lastRequestAt = 0;
+  // Circuit breaker: when the public servers are down, don't make a big import crawl
+  // through one slow timeout per meal.
+  let consecutiveFailures = 0;
+  let blockedUntil = 0;
 
   async function request(query: string): Promise<{ elements?: OverpassElement[] }> {
     let lastError: unknown;
@@ -105,13 +117,24 @@ export function createOverpassSource(options: Options = {}): VenueSource {
       if (cached) return Promise.resolve(cached);
 
       const run = async () => {
+        if (clock() < blockedUntil) throw new Error('Overpass temporarily skipped after repeated failures');
         const wait = lastRequestAt + minInterval - Date.now();
         if (wait > 0) await new Promise((r) => setTimeout(r, wait));
         lastRequestAt = Date.now();
-        const json = await request(buildQuery(rLat, rLon, radiusM));
-        const result = parseOverpass(json, lat, lon);
-        cache.set(key, result);
-        return result;
+        try {
+          const json = await request(buildQuery(rLat, rLon, radiusM));
+          const result = parseOverpass(json, lat, lon);
+          cache.set(key, result);
+          consecutiveFailures = 0;
+          return result;
+        } catch (e) {
+          consecutiveFailures += 1;
+          if (consecutiveFailures >= maxFailures) {
+            blockedUntil = clock() + cooldownMs;
+            consecutiveFailures = 0;
+          }
+          throw e;
+        }
       };
       const next = chain.then(run, run);
       chain = next.catch(() => undefined);

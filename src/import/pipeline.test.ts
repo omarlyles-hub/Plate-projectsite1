@@ -123,6 +123,21 @@ describe('runImport', () => {
     expect(saved[0].candidates[0].needsManualName).toBe(true);
   });
 
+  it('counts meals whose venue lookup failed', async () => {
+    const { deps, saved } = setup({
+      meta: { 'a.jpg': { lat: LAT, lon: LON, date: NOW - DAY } },
+      food: { 'a.jpg': 0.9 },
+    });
+    deps.venueSource = {
+      search: async () => {
+        throw new Error('unreachable');
+      },
+    };
+    const summary = await runImport([file('a.jpg')], deps);
+    expect(summary.lookupFailures).toBe(1);
+    expect(saved[0].candidates[0].needsManualName).toBe(true);
+  });
+
   it('stops after repeated classifier failures but still reports what it kept', async () => {
     const { deps } = setup({
       meta: Object.fromEntries(

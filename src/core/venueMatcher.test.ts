@@ -110,6 +110,16 @@ describe('matchVenue: fallback when MapKit-style lookup returns nothing', () => 
       timeoutMs: 20,
     });
     expect(r.source).toBe('unknown');
+    expect(r.lookupFailed).toBe(true);
+  });
+
+  it('flags a failed lookup, but not an empty result or a disabled lookup', async () => {
+    const failed = await matchVenue(LAT, LON, throwing, { lookupEnabled: true, knownVenues: [] });
+    const empty = await matchVenue(LAT, LON, stub([]), { lookupEnabled: true, knownVenues: [] });
+    const off = await matchVenue(LAT, LON, throwing, { lookupEnabled: false, knownVenues: [] });
+    expect(failed.lookupFailed).toBe(true);
+    expect(empty.lookupFailed).toBe(false);
+    expect(off.lookupFailed).toBe(false);
   });
 
   it('never calls the source when lookup is switched off', async () => {
