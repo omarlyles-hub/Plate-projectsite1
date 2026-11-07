@@ -63,6 +63,15 @@ export class IdbRepository implements Repository {
     this.emit();
   }
 
+  async deleteVenue(id: string) {
+    await (await this.dbPromise).delete('venues', id);
+    this.emit();
+  }
+  async deleteCandidate(id: string) {
+    await (await this.dbPromise).delete('candidates', id);
+    this.emit();
+  }
+
   async listMeals() {
     return (await this.dbPromise).getAll('meals');
   }

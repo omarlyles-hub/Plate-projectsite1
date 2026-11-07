@@ -1,5 +1,6 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRepo, useLiveQuery, useSettings } from '../../data/RepoContext';
+import { useSync } from '../../data/SyncContext';
 import { seedDemo, DEMO_MEAL_COUNT } from '../../data/seed';
 import { importController, useImportState } from '../../import/importController';
 import { canPickFolder, isImageFile, pickFolderImages } from '../../import/pickFiles';
@@ -8,6 +9,7 @@ import { PageHead } from '../shared/bits';
 import { go } from '../router';
 
 function PrivacyGate({ onAccept }: { onAccept: () => void }) {
+  const sync = useSync();
   return (
     <div className="card">
       <div className="card-body stack">
@@ -31,7 +33,16 @@ function PrivacyGate({ onAccept }: { onAccept: () => void }) {
             service. No photos or other data are sent. You can switch this off in Settings below
             and type venue names yourself.
           </li>
-          <li>No accounts, no analytics, no tracking.</li>
+          {sync.kind === 'cloud' ? (
+            <li>
+              <strong>Your account:</strong> the meals, venues and dishes you confirm are saved to your
+              private Plate account so they sync across devices. Photos and thumbnails are never
+              uploaded.
+            </li>
+          ) : (
+            <li>Nothing is uploaded: your journal stays in this browser.</li>
+          )}
+          <li>No analytics, no tracking.</li>
         </ul>
         <button className="btn primary block" onClick={onAccept}>
           I understand, continue
@@ -195,9 +206,84 @@ function QueueCard() {
   );
 }
 
+function AccountCard() {
+  const sync = useSync();
+  const [pending, setPending] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string>();
+  const [error, setError] = useState<string>();
+
+  useEffect(() => {
+    let cancelled = false;
+    void sync.pendingLocalCount?.().then((n) => {
+      if (!cancelled) setPending(n);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [sync]);
+
+  if (sync.kind === 'none') return null;
+
+  const upload = async () => {
+    setBusy(true);
+    setError(undefined);
+    try {
+      const moved = await sync.uploadLocal?.();
+      setPending(0);
+      setMessage(`Uploaded ${moved ?? 0} ${moved === 1 ? 'meal' : 'meals'} to your account.`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Upload failed');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="card">
+      <div className="card-body stack" style={{ gap: 10 }}>
+        <h2 className="serif">Account</h2>
+        {sync.kind === 'cloud' ? (
+          <>
+            <div className="small">
+              Signed in as <strong>{sync.email}</strong>. Your meals sync to your account; photos stay on
+              this device.
+            </div>
+            {sync.syncError && (
+              <p className="small" role="alert" style={{ margin: 0, color: '#b3261e' }}>
+                Sync problem: {sync.syncError}
+              </p>
+            )}
+            {pending > 0 && (
+              <button className="btn" disabled={busy} onClick={() => void upload()}>
+                {busy ? 'Uploading…' : `Upload ${pending} ${pending === 1 ? 'item' : 'items'} from this device`}
+              </button>
+            )}
+            {message && <div className="small" role="status">{message}</div>}
+            {error && <div className="small" role="alert" style={{ color: '#b3261e' }}>{error}</div>}
+            <button className="btn ghost" onClick={() => void sync.signOut?.()}>
+              Sign out
+            </button>
+          </>
+        ) : (
+          <>
+            <div className="small muted">
+              Using this device only. Sign in to sync your meals across devices.
+            </div>
+            <button className="btn primary" onClick={() => sync.signIn?.()}>
+              Sign in or create account
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function SettingsCard() {
   const repo = useRepo();
   const [settings, update] = useSettings();
+  const sync = useSync();
   const [confirmErase, setConfirmErase] = useState(false);
 
   const toggleDemo = async (on: boolean) => {
@@ -240,7 +326,10 @@ function SettingsCard() {
         <div className="switch-row">
           <span>
             <strong>Erase all data</strong>
-            <div className="small muted">Deletes your journal, thumbnails and queue from this browser.</div>
+            <div className="small muted">
+              Deletes your journal, thumbnails and queue from this browser
+              {sync.kind === 'cloud' ? ' and from your account' : ''}.
+            </div>
           </span>
           {confirmErase ? (
             <span className="row">
@@ -279,6 +368,7 @@ export function ImportTab() {
         ) : (
           <PrivacyGate onAccept={() => void update({ privacyAccepted: true })} />
         )}
+        <AccountCard />
         <SettingsCard />
       </div>
     </>

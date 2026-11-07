@@ -5,9 +5,10 @@ A dish-level dining journal built retroactively from your photos. Pick photos fr
 restaurant, and lets you confirm each one with a swipe. Later it resurfaces what you loved and
 answers "where should I eat near X?" using only your own log.
 
-This is a **front-end-only prototype**: React + Vite + TypeScript, local-first, no accounts, no
-backend. A Supabase backend is planned and the data layer is built to swap to it (see
-[Architecture](#architecture)).
+This is a React + Vite + TypeScript app that works fully on-device by default. When Supabase
+is configured (see [Supabase setup](#supabase-setup)), you sign in with email and password and
+your meals, venues, dishes and review queue sync to your own private rows. Photos and
+thumbnails never leave the device.
 
 ## Setup
 
@@ -93,19 +94,43 @@ the top three. **Fallback chain** when the lookup returns nothing, fails, times 
 off: (1) venues already in your log within 150 m, then (2) a single "Unknown place" card that
 asks you to type the name.
 
-### Swapping in Supabase later
+### Supabase setup
 
-UI and pipeline code only talk to the `Repository` interface (`src/data/repo.ts`). To move to
-Supabase, implement a `supabaseRepo.ts` against the same interface and pass it to
-`RepoProvider` in `App.tsx`. Records are JSON-friendly with UUID ids, so they map onto tables.
-Photo thumbnails (`savePhoto`/`getPhoto`) would move to Storage. Nothing in this repo
-depends on Supabase today.
+UI and pipeline code only talk to the `Repository` interface (`src/data/repo.ts`).
+
+- `idbRepo.ts`: on-device store (IndexedDB). Used alone when Supabase isn't configured or you
+  choose "Use on this device only".
+- `hybridRepo.ts`: used when signed in. Real meals, venues, dishes and the review queue go to
+  Supabase (`supabaseCloud.ts`); photo thumbnails, scan history, settings and **demo data stay
+  on the device**. If the cloud is unreachable, reads fall back to device data and Settings
+  shows the error. Data created on the device before signing in can be uploaded from
+  Import → Account.
+- `rows.ts`: camelCase ↔ snake_case mapping.
+
+To turn it on:
+
+1. Copy `.env.example` to `.env.local` and fill in your project URL and **publishable** key
+   (never the service-role key). Restart `npm run dev`; Vite reads env files only at startup.
+2. Apply the schema in `supabase/migrations/20261107000000_init_plate.sql` (SQL editor, or
+   `supabase db push`). It creates `venues`, `meals`, `dishes` and `meal_candidates`, each with
+   a `user_id` and an owner-only row-level-security policy.
+3. In the Supabase dashboard go to Authentication → Sign In / Providers → Email. For a
+   frictionless prototype, turn **Confirm email** off (otherwise new accounts must click an
+   emailed link before signing in; the app handles both cases).
+
+Row-level security is what protects the data: the publishable key is public by design and is
+useless without a signed-in user's session.
 
 ## Privacy and network use
 
-- Everything is processed in your browser. There are no accounts and no analytics.
+- Everything is processed in your browser. There are no analytics. Accounts exist only if you
+  configure Supabase.
+- With Supabase on and a signed-in user, confirmed meals, venues (including their coordinates),
+  dishes and the review queue are stored in your Supabase project, protected by row-level
+  security. Demo data and photos are never uploaded.
 - Original photos are **never stored**. Only a small JPEG thumbnail (480 px) of each kept food
-  photo is saved, in IndexedDB on your device.
+  photo is saved, in IndexedDB on your device. On a second device, synced meals appear without
+  their photos.
 - Network calls, all disclosed in the app before the first import:
   1. **One-time model download** from the Hugging Face CDN (a CLIP model, roughly 50-90 MB),
      then cached by the browser. Classification runs locally.

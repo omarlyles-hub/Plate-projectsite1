@@ -1,6 +1,13 @@
-import { useMemo } from 'react';
+import type { Session } from '@supabase/supabase-js';
+import { useMemo, useState } from 'react';
+import { AuthScreen } from './auth/AuthScreen';
+import { useAuth, type AuthApi } from './auth/useAuth';
+import { HybridRepository } from './data/hybridRepo';
 import { IdbRepository } from './data/idbRepo';
 import { RepoProvider, useLiveQuery } from './data/RepoContext';
+import { SyncContext, type SyncInfo } from './data/SyncContext';
+import { createSupabaseCloud } from './data/supabaseCloud';
+import { supabase, supabaseConfigured } from './data/supabaseClient';
 import { ImportTab } from './ui/tabs/ImportTab';
 import { JournalTab } from './ui/tabs/JournalTab';
 import { RecommendTab } from './ui/tabs/RecommendTab';
@@ -86,11 +93,73 @@ function Shell() {
   );
 }
 
-export function App() {
-  const repo = useMemo(() => new IdbRepository(), []);
+// One on-device store for the whole session; the cloud-backed repository wraps it.
+let localStore: IdbRepository | undefined;
+const getLocal = () => (localStore ??= new IdbRepository());
+
+function LocalApp({ sync }: { sync: SyncInfo }) {
   return (
-    <RepoProvider repo={repo}>
-      <Shell />
-    </RepoProvider>
+    <SyncContext.Provider value={sync}>
+      <RepoProvider repo={getLocal()}>
+        <Shell />
+      </RepoProvider>
+    </SyncContext.Provider>
   );
+}
+
+function CloudApp({ auth, session }: { auth: AuthApi; session: Session }) {
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const userId = session.user.id;
+  const email = session.user.email;
+  const signOut = auth.signOut;
+
+  const repo = useMemo(
+    () => new HybridRepository(getLocal(), createSupabaseCloud(supabase!), setSyncError),
+    // A new user means a new repository; the session object itself changes on token refresh.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [userId],
+  );
+  const sync = useMemo<SyncInfo>(
+    () => ({
+      kind: 'cloud',
+      email,
+      syncError,
+      signOut,
+      pendingLocalCount: () => repo.pendingLocalCount(),
+      uploadLocal: () => repo.uploadLocal(),
+    }),
+    [email, syncError, signOut, repo],
+  );
+
+  return (
+    <SyncContext.Provider value={sync}>
+      <RepoProvider key={userId} repo={repo}>
+        <Shell />
+      </RepoProvider>
+    </SyncContext.Provider>
+  );
+}
+
+function AuthGate() {
+  const auth = useAuth();
+  const { status } = auth;
+  const localOnly = useMemo<SyncInfo>(() => ({ kind: 'local-only', signIn: auth.showSignIn }), [auth.showSignIn]);
+
+  switch (status.kind) {
+    case 'loading':
+      return null;
+    case 'signed-out':
+      return <AuthScreen auth={auth} />;
+    case 'signed-in':
+      return <CloudApp auth={auth} session={status.session} />;
+    case 'local-only':
+      return <LocalApp sync={localOnly} />;
+  }
+}
+
+const NO_SYNC: SyncInfo = { kind: 'none' };
+
+export function App() {
+  // Without Supabase env vars the app runs fully on-device, exactly as before.
+  return supabaseConfigured ? <AuthGate /> : <LocalApp sync={NO_SYNC} />;
 }
