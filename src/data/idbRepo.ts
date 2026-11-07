@@ -165,8 +165,10 @@ export class IdbRepository implements Repository {
     const venues = (await db.getAll('venues')).filter((v) => v.isDemo);
     const mealIds = new Set(meals.map((m) => m.id));
     const dishes = (await db.getAll('dishes')).filter((d) => mealIds.has(d.mealId));
-    const tx = db.transaction(['venues', 'meals', 'dishes'], 'readwrite');
+    const candidates = (await db.getAllKeys('candidates')).filter((k) => k.startsWith('demo-'));
+    const tx = db.transaction(['venues', 'meals', 'dishes', 'candidates'], 'readwrite');
     await Promise.all([
+      ...candidates.map((k) => tx.objectStore('candidates').delete(k)),
       ...meals.map((m) => tx.objectStore('meals').delete(m.id)),
       ...venues.map((v) => tx.objectStore('venues').delete(v.id)),
       ...dishes.map((d) => tx.objectStore('dishes').delete(d.id)),
