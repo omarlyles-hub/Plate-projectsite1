@@ -88,6 +88,15 @@ describe('filterVenues', () => {
     expect(dists).toEqual([...dists].sort((a, b) => a - b));
   });
 
+  it('leaves venues with no location out of near-me results but keeps them elsewhere', () => {
+    const v = [venue('placed'), venue('nowhere', { latitude: null, longitude: null, neighborhood: '' })];
+    const m = [meal('1', 'placed', 'loved'), meal('2', 'nowhere', 'loved')];
+    const s = summarizeVenues(v, m, []);
+    const near = filterVenues(s, { near: { lat: 40.73, lon: -74.0, radiusM: 1500 } });
+    expect(near.map((x) => x.venue.id)).toEqual(['placed']);
+    expect(filterVenues(s, {}).map((x) => x.venue.id).sort()).toEqual(['nowhere', 'placed']);
+  });
+
   it('combines filters', () => {
     const out = filterVenues(all, { neighborhood: 'West Village', minRating: 'loved', prices: [3] });
     expect(out).toHaveLength(1);

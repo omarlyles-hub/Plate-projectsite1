@@ -77,10 +77,10 @@ function ImportRun() {
       <div className="card-body stack">
         <h2 className="serif">Scan your photos</h2>
         <p className="muted small" style={{ margin: 0 }}>
-          Choose photos from the last {IMPORT_CONFIG.lookbackMonths} months. Only photos with
-          location data that look like food are kept. On iPhone, Safari may remove location from
-          picked photos; if nothing is found, choose &quot;Options &rarr; Location: Include&quot; in
-          the picker, or import from a desktop folder.
+          Choose photos from the last {IMPORT_CONFIG.lookbackMonths} months. Photos that look like
+          food are kept. Photos with a location get restaurant suggestions; photos without one are
+          grouped by time and you name the place yourself. (On iPhone, Safari can strip location from
+          picked photos; choose &quot;Options &rarr; Location: Include&quot; to keep it.)
         </p>
         <input
           ref={inputRef}
@@ -126,7 +126,7 @@ function ImportRun() {
               <div className="progress"><div style={{ width: `${pct}%` }} /></div>
             </div>
             <div className="small muted">
-              {p.kept} food photos kept &middot; {p.skippedNoGps} without location &middot;{' '}
+              {p.kept} food photos kept &middot; {p.withoutLocation} without location &middot;{' '}
               {p.skippedNotFood} not food
             </div>
             <button className="btn ghost" onClick={() => importController.cancel()}>
@@ -147,13 +147,19 @@ function ImportRun() {
               </strong>
               <div className="small" style={{ marginTop: 4 }}>
                 {state.summary.kept} food photos &rarr; {state.summary.candidates} meals to review.
-                {state.summary.skippedNoGps > 0 &&
-                  ` ${state.summary.skippedNoGps} photos had no location.`}
+                {state.summary.withoutLocation > 0 &&
+                  ` ${state.summary.withoutLocation} ${state.summary.withoutLocation === 1 ? 'photo has' : 'photos have'} no location, so you'll name those places yourself.`}
                 {state.summary.skippedOutsideWindow > 0 &&
                   ` ${state.summary.skippedOutsideWindow} were older than ${IMPORT_CONFIG.lookbackMonths} months.`}
                 {state.summary.skippedAlreadyScanned > 0 &&
                   ` ${state.summary.skippedAlreadyScanned} were already scanned.`}
               </div>
+              {state.summary.usedFileDate > 0 && (
+                <div className="small" style={{ marginTop: 6 }}>
+                  {state.summary.usedFileDate} {state.summary.usedFileDate === 1 ? 'photo has' : 'photos have'} no
+                  capture date, so the file&apos;s modified date was used. Check those dates while reviewing.
+                </div>
+              )}
               {state.summary.lookupFailures > 0 && (
                 <div className="small" style={{ marginTop: 6 }} role="alert">
                   Couldn&apos;t reach the restaurant lookup for {state.summary.lookupFailures}{' '}

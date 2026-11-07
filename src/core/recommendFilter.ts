@@ -1,4 +1,4 @@
-import { haversineM } from './geo';
+import { distanceOrInfinity } from './geo';
 import { RATING_RANK, type Dish, type Meal, type PriceFeel, type Rating, type Venue } from './types';
 
 export interface VenueSummary {
@@ -86,7 +86,8 @@ export function filterVenues(summaries: readonly VenueSummary[], q: RecommendQue
 
     let distanceM: number | undefined;
     if (q.near) {
-      distanceM = haversineM(q.near.lat, q.near.lon, s.venue.latitude, s.venue.longitude);
+      // Venues without a location can't be "near" anyone.
+      distanceM = distanceOrInfinity(q.near.lat, q.near.lon, s.venue.latitude, s.venue.longitude);
       if (distanceM > q.near.radiusM) continue;
     }
     results.push({ ...s, distanceM });

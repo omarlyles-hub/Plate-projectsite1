@@ -1,46 +1,57 @@
 import exifr from 'exifr';
 
 export interface PhotoMeta {
-  lat: number;
-  lon: number;
+  /** Null when the photo carries no GPS location. */
+  lat: number | null;
+  lon: number | null;
   /** Epoch ms. */
   date: number;
+  /** Where the date came from: the photo's EXIF, or the file's modified time as a fallback. */
+  dateSource: 'exif' | 'file';
 }
 
+const validCoord = (lat: unknown, lon: unknown): lat is number =>
+  typeof lat === 'number' &&
+  typeof lon === 'number' &&
+  Number.isFinite(lat) &&
+  Number.isFinite(lon) &&
+  !(lat === 0 && lon === 0);
+
+type Times = { DateTimeOriginal?: Date; CreateDate?: Date } | undefined;
+
 /**
- * Reads GPS and capture time from a photo's EXIF block. Returns null when the photo has
- * no location (such photos are ignored) or the file can't be parsed.
+ * Reads capture time and, when present, GPS from a photo's EXIF block. Photos without a
+ * location are still returned (lat/lon null); photos with no date fall back to the file's
+ * modified time.
  */
-export async function readPhotoMeta(file: File): Promise<PhotoMeta | null> {
+export async function readPhotoMeta(file: File): Promise<PhotoMeta> {
+  let gps: { latitude?: number; longitude?: number } | undefined;
   try {
-    const data = (await exifr.parse(file, {
-      gps: true,
+    gps = (await exifr.gps(file)) as typeof gps;
+  } catch {
+    gps = undefined;
+  }
+
+  let times: Times;
+  try {
+    times = (await exifr.parse(file, {
       tiff: true,
       exif: true,
-      pick: ['DateTimeOriginal', 'CreateDate', 'latitude', 'longitude'],
-    })) as
-      | {
-          latitude?: number;
-          longitude?: number;
-          DateTimeOriginal?: Date;
-          CreateDate?: Date;
-        }
-      | undefined;
-    if (!data) return null;
-    const { latitude, longitude } = data;
-    if (
-      typeof latitude !== 'number' ||
-      typeof longitude !== 'number' ||
-      !Number.isFinite(latitude) ||
-      !Number.isFinite(longitude) ||
-      (latitude === 0 && longitude === 0)
-    ) {
-      return null;
-    }
-    const taken = data.DateTimeOriginal ?? data.CreateDate;
-    const date = taken instanceof Date && !Number.isNaN(taken.getTime()) ? taken.getTime() : file.lastModified;
-    return { lat: latitude, lon: longitude, date };
+      gps: false,
+      pick: ['DateTimeOriginal', 'CreateDate'],
+    })) as Times;
   } catch {
-    return null;
+    times = undefined;
   }
+
+  const taken = times?.DateTimeOriginal ?? times?.CreateDate;
+  const exifDate = taken instanceof Date && !Number.isNaN(taken.getTime()) ? taken.getTime() : undefined;
+  const located = gps !== undefined && validCoord(gps.latitude, gps.longitude);
+
+  return {
+    lat: located ? (gps?.latitude as number) : null,
+    lon: located ? (gps?.longitude as number) : null,
+    date: exifDate ?? file.lastModified,
+    dateSource: exifDate !== undefined ? 'exif' : 'file',
+  };
 }

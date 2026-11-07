@@ -15,8 +15,8 @@ export interface VenueRow {
   id: string;
   name: string;
   address: string;
-  latitude: number;
-  longitude: number;
+  latitude: number | null;
+  longitude: number | null;
   map_item_id: string | null;
   neighborhood: string;
 }
@@ -39,8 +39,8 @@ export interface DishRow {
 export interface CandidateRow {
   id: string;
   date: string;
-  latitude: number;
-  longitude: number;
+  latitude: number | null;
+  longitude: number | null;
   photo_ids: string[];
   candidates: VenueCandidate[];
   status: CandidateStatus;

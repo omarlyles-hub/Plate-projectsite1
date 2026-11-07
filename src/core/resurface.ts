@@ -1,4 +1,4 @@
-import { haversineM } from './geo';
+import { distanceOrInfinity } from './geo';
 import type { VenueSummary } from './recommendFilter';
 import type { Dish, Meal, Venue } from './types';
 
@@ -35,7 +35,7 @@ export function lovedNearby(
     return loved
       .map((summary) => ({
         summary,
-        distanceM: haversineM(here.lat, here.lon, summary.venue.latitude, summary.venue.longitude),
+        distanceM: distanceOrInfinity(here.lat, here.lon, summary.venue.latitude, summary.venue.longitude),
       }))
       .filter((x) => x.distanceM <= radiusM)
       .sort((a, b) => a.distanceM - b.distanceM)

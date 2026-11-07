@@ -1,4 +1,4 @@
-import { haversineM } from './geo';
+import { distanceOrInfinity, haversineM } from './geo';
 import { nearestNeighborhood } from './neighborhoods';
 import type { Venue, VenueCandidate } from './types';
 
@@ -59,11 +59,18 @@ function findKnown(c: VenueCandidate, known: readonly Venue[]): Venue | undefine
     (v) =>
       (c.mapItemId !== null && v.mapItemId === c.mapItemId) ||
       (norm(v.name) === norm(c.name) &&
-        haversineM(v.latitude, v.longitude, c.latitude, c.longitude) <= 150),
+        // A venue saved without a location matches on name alone.
+        (v.latitude === null ||
+          v.longitude === null ||
+          haversineM(v.latitude, v.longitude, c.latitude, c.longitude) <= 150)),
   );
 }
 
-function fromKnown(v: Venue, lat: number, lon: number): VenueCandidate {
+function fromKnown(
+  v: Venue & { latitude: number; longitude: number },
+  lat: number,
+  lon: number,
+): VenueCandidate {
   return {
     name: v.name,
     address: v.address,
@@ -71,10 +78,13 @@ function fromKnown(v: Venue, lat: number, lon: number): VenueCandidate {
     longitude: v.longitude,
     mapItemId: v.mapItemId,
     neighborhood: v.neighborhood,
-    distanceM: haversineM(lat, lon, v.latitude, v.longitude),
+    distanceM: distanceOrInfinity(lat, lon, v.latitude, v.longitude),
     knownVenueId: v.id,
   };
 }
+
+const hasLocation = (v: Venue): v is Venue & { latitude: number; longitude: number } =>
+  v.latitude !== null && v.longitude !== null;
 
 /**
  * Proposes up to three venues for a meal location.
@@ -127,6 +137,7 @@ export async function matchVenue(
   ranked.forEach(push);
 
   const nearbyKnown = o.knownVenues
+    .filter(hasLocation)
     .map((v) => fromKnown(v, lat, lon))
     .filter((c) => c.distanceM <= o.knownRadiusM)
     .sort((a, b) => a.distanceM - b.distanceM);

@@ -17,8 +17,9 @@ export interface Venue {
   id: string;
   name: string;
   address: string;
-  latitude: number;
-  longitude: number;
+  /** Null for a venue typed by hand from photos that carried no location. */
+  latitude: number | null;
+  longitude: number | null;
   /** OpenStreetMap element, e.g. "node/123456". Null for manually named venues. */
   mapItemId: string | null;
   neighborhood: string;
@@ -67,8 +68,9 @@ export type CandidateStatus = 'pending' | 'skipped' | 'dismissed' | 'confirmed';
 export interface MealCandidate {
   id: string;
   date: number;
-  latitude: number;
-  longitude: number;
+  /** Null when the photos had no GPS; such cards have no venue candidates and need a typed name. */
+  latitude: number | null;
+  longitude: number | null;
   photoIds: string[];
   candidates: VenueCandidate[];
   status: CandidateStatus;

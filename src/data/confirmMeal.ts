@@ -1,4 +1,4 @@
-import { haversineM } from '../core/geo';
+import { distanceOrInfinity } from '../core/geo';
 import { nearestNeighborhood } from '../core/neighborhoods';
 import type {
   Dish,
@@ -31,8 +31,19 @@ type Repo = Pick<
 
 const norm = (s: string) => s.trim().toLowerCase();
 
+/** What a venue needs to be created or matched; a VenueCandidate satisfies it. */
+interface Place {
+  name: string;
+  address: string;
+  latitude: number | null;
+  longitude: number | null;
+  mapItemId: string | null;
+  neighborhood: string;
+  knownVenueId?: string;
+}
+
 /** Finds an existing venue the user already has, so repeat visits share one venue page. */
-function findExisting(venues: readonly Venue[], c: VenueCandidate): Venue | undefined {
+function findExisting(venues: readonly Venue[], c: Place): Venue | undefined {
   if (c.knownVenueId) {
     const byId = venues.find((v) => v.id === c.knownVenueId);
     if (byId) return byId;
@@ -41,7 +52,10 @@ function findExisting(venues: readonly Venue[], c: VenueCandidate): Venue | unde
     (v) =>
       (c.mapItemId !== null && v.mapItemId === c.mapItemId) ||
       (norm(v.name) === norm(c.name) &&
-        haversineM(v.latitude, v.longitude, c.latitude, c.longitude) <= 200),
+        // With either location unknown, a matching name is the best evidence we have.
+        (distanceOrInfinity(v.latitude, v.longitude, c.latitude, c.longitude) <= 200 ||
+          v.latitude === null ||
+          c.latitude === null)),
   );
 }
 
@@ -58,7 +72,10 @@ export async function confirmCandidate(
 ): Promise<string> {
   const venues = await repo.listVenues();
 
-  const candidate: VenueCandidate =
+  const hood = (lat: number | null, lon: number | null) =>
+    lat === null || lon === null ? '' : nearestNeighborhood(lat, lon);
+
+  const candidate: Place =
     choice.kind === 'candidate'
       ? choice.candidate
       : {
@@ -67,8 +84,7 @@ export async function confirmCandidate(
           latitude: card.latitude,
           longitude: card.longitude,
           mapItemId: null,
-          neighborhood: nearestNeighborhood(card.latitude, card.longitude),
-          distanceM: 0,
+          neighborhood: hood(card.latitude, card.longitude),
         };
 
   if (!candidate.name) throw new Error('A venue name is required');
@@ -82,7 +98,7 @@ export async function confirmCandidate(
       latitude: candidate.latitude,
       longitude: candidate.longitude,
       mapItemId: candidate.mapItemId,
-      neighborhood: candidate.neighborhood || nearestNeighborhood(candidate.latitude, candidate.longitude),
+      neighborhood: candidate.neighborhood || hood(candidate.latitude, candidate.longitude),
     };
     await repo.saveVenue(venue);
   }

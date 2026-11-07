@@ -12,7 +12,7 @@ const LON = -74.0036;
 const file = (name: string) => new File(['x'], name, { lastModified: 1 });
 
 interface Fixture {
-  meta: Record<string, PhotoMeta | null>;
+  meta: Record<string, PhotoMeta>;
   food: Record<string, number>;
 }
 
@@ -36,7 +36,7 @@ function setup(fx: Fixture, overrides: Partial<ImportDeps> = {}) {
       saveCandidates: async (items) => void saved.push(...items),
       listVenues: async () => [],
     },
-    readMeta: async (f) => fx.meta[f.name] ?? null,
+    readMeta: async (f) => fx.meta[f.name] ?? { lat: null, lon: null, date: NOW - 2 * DAY, dateSource: 'file' as const },
     makeThumbnail: async (f) => Object.assign(new Blob(['t']), { _name: f.name }),
     classifier,
     venueSource: {
@@ -61,22 +61,20 @@ function setup(fx: Fixture, overrides: Partial<ImportDeps> = {}) {
 }
 
 describe('runImport', () => {
-  it('keeps recent geotagged food photos and builds one candidate per meal', async () => {
+  it('keeps recent food photos and builds one candidate per meal', async () => {
     const { deps, saved, photos } = setup({
       meta: {
-        'a.jpg': { lat: LAT, lon: LON, date: NOW - 10 * DAY },
-        'b.jpg': { lat: LAT, lon: LON, date: NOW - 10 * DAY + 600_000 },
-        'nogps.jpg': null,
-        'old.jpg': { lat: LAT, lon: LON, date: NOW - 400 * DAY },
-        'selfie.jpg': { lat: LAT, lon: LON, date: NOW - 5 * DAY },
+        'a.jpg': { lat: LAT, lon: LON, date: NOW - 10 * DAY, dateSource: 'exif' },
+        'b.jpg': { lat: LAT, lon: LON, date: NOW - 10 * DAY + 600_000, dateSource: 'exif' },
+        'old.jpg': { lat: LAT, lon: LON, date: NOW - 400 * DAY, dateSource: 'exif' },
+        'selfie.jpg': { lat: LAT, lon: LON, date: NOW - 5 * DAY, dateSource: 'exif' },
       },
       food: { 'a.jpg': 0.9, 'b.jpg': 0.8, 'old.jpg': 0.9, 'selfie.jpg': 0.1 },
     });
-    const files = ['a.jpg', 'b.jpg', 'nogps.jpg', 'old.jpg', 'selfie.jpg'].map(file);
+    const files = ['a.jpg', 'b.jpg', 'old.jpg', 'selfie.jpg'].map(file);
     const summary = await runImport(files, deps);
 
     expect(summary.kept).toBe(2);
-    expect(summary.skippedNoGps).toBe(1);
     expect(summary.skippedOutsideWindow).toBe(1);
     expect(summary.skippedNotFood).toBe(1);
     expect(summary.candidates).toBe(1);
@@ -87,11 +85,64 @@ describe('runImport', () => {
     expect(saved[0].candidates[0].name).toBe('Via Carota');
   });
 
+  it('accepts photos without GPS: one taken during a located meal joins it', async () => {
+    const { deps, saved, photos } = setup({
+      meta: {
+        'a.jpg': { lat: LAT, lon: LON, date: NOW - 10 * DAY, dateSource: 'exif' },
+        'nogps.jpg': { lat: null, lon: null, date: NOW - 10 * DAY + 1_200_000, dateSource: 'exif' },
+      },
+      food: { 'a.jpg': 0.9, 'nogps.jpg': 0.9 },
+    });
+    const summary = await runImport(['a.jpg', 'nogps.jpg'].map(file), deps);
+    expect(summary.kept).toBe(2);
+    expect(summary.withoutLocation).toBe(1);
+    expect(photos.size).toBe(2);
+    expect(saved).toHaveLength(1);
+    expect(saved[0].photoIds).toHaveLength(2);
+    expect(saved[0].latitude).toBe(LAT);
+    expect(saved[0].candidates[0].name).toBe('Via Carota');
+  });
+
+  it('puts photos with no GPS and no nearby located meal on a time-only card that needs a typed name', async () => {
+    let searches = 0;
+    const { deps, saved } = setup({
+      meta: {
+        'x.jpg': { lat: null, lon: null, date: NOW - 8 * DAY, dateSource: 'exif' },
+        'y.jpg': { lat: null, lon: null, date: NOW - 8 * DAY + 1_800_000, dateSource: 'exif' },
+        'z.jpg': { lat: null, lon: null, date: NOW - 3 * DAY, dateSource: 'exif' },
+      },
+      food: { 'x.jpg': 0.9, 'y.jpg': 0.9, 'z.jpg': 0.9 },
+    });
+    deps.venueSource = {
+      search: async () => {
+        searches += 1;
+        return [];
+      },
+    };
+    const summary = await runImport(['x.jpg', 'y.jpg', 'z.jpg'].map(file), deps);
+    expect(summary.withoutLocation).toBe(3);
+    expect(summary.candidates).toBe(2); // x+y together, z alone
+    expect(saved.every((c) => c.latitude === null && c.longitude === null)).toBe(true);
+    expect(saved.every((c) => c.candidates.length === 0)).toBe(true);
+    expect(searches).toBe(0); // nothing to look up without a location
+    expect(summary.lookupFailures).toBe(0);
+  });
+
+  it('counts photos that had no capture date and fell back to the file date', async () => {
+    const { deps } = setup({
+      meta: { 'a.jpg': { lat: null, lon: null, date: NOW - DAY, dateSource: 'file' } },
+      food: { 'a.jpg': 0.9 },
+    });
+    const summary = await runImport([file('a.jpg')], deps);
+    expect(summary.usedFileDate).toBe(1);
+    expect(summary.kept).toBe(1);
+  });
+
   it('splits photos taken hours apart into separate meals', async () => {
     const { deps, saved } = setup({
       meta: {
-        'lunch.jpg': { lat: LAT, lon: LON, date: NOW - 10 * DAY },
-        'dinner.jpg': { lat: LAT, lon: LON, date: NOW - 10 * DAY + 8 * 3_600_000 },
+        'lunch.jpg': { lat: LAT, lon: LON, date: NOW - 10 * DAY, dateSource: 'exif' },
+        'dinner.jpg': { lat: LAT, lon: LON, date: NOW - 10 * DAY + 8 * 3_600_000, dateSource: 'exif' },
       },
       food: { 'lunch.jpg': 0.9, 'dinner.jpg': 0.9 },
     });
@@ -101,7 +152,7 @@ describe('runImport', () => {
 
   it('skips files it has already scanned', async () => {
     const { deps, scanned } = setup({
-      meta: { 'a.jpg': { lat: LAT, lon: LON, date: NOW - DAY } },
+      meta: { 'a.jpg': { lat: LAT, lon: LON, date: NOW - DAY, dateSource: 'exif' } },
       food: { 'a.jpg': 0.9 },
     });
     const f = file('a.jpg');
@@ -114,7 +165,7 @@ describe('runImport', () => {
   it('falls back to a manual-entry candidate when venue lookup is off', async () => {
     const { deps, saved } = setup(
       {
-        meta: { 'a.jpg': { lat: LAT, lon: LON, date: NOW - DAY } },
+        meta: { 'a.jpg': { lat: LAT, lon: LON, date: NOW - DAY, dateSource: 'exif' } },
         food: { 'a.jpg': 0.9 },
       },
       { lookupEnabled: false },
@@ -125,7 +176,7 @@ describe('runImport', () => {
 
   it('counts meals whose venue lookup failed', async () => {
     const { deps, saved } = setup({
-      meta: { 'a.jpg': { lat: LAT, lon: LON, date: NOW - DAY } },
+      meta: { 'a.jpg': { lat: LAT, lon: LON, date: NOW - DAY, dateSource: 'exif' } },
       food: { 'a.jpg': 0.9 },
     });
     deps.venueSource = {
@@ -141,7 +192,7 @@ describe('runImport', () => {
   it('stops after repeated classifier failures but still reports what it kept', async () => {
     const { deps } = setup({
       meta: Object.fromEntries(
-        ['1', '2', '3', '4'].map((n) => [`${n}.jpg`, { lat: LAT, lon: LON, date: NOW - DAY }]),
+        ['1', '2', '3', '4'].map((n) => [`${n}.jpg`, { lat: LAT, lon: LON, date: NOW - DAY, dateSource: 'exif' }]),
       ),
       food: {},
     });

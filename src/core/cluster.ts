@@ -83,3 +83,78 @@ export function clusterMeals(
 
   return all.filter((c) => c.photos.length >= config.minPhotos);
 }
+
+/** A photo that may or may not carry a location. */
+export interface TimedPhoto {
+  id: string;
+  date: number;
+  lat: number | null;
+  lon: number | null;
+}
+
+/** A meal cluster whose location is unknown when none of its photos had GPS. */
+export interface AnyCluster {
+  photos: TimedPhoto[];
+  start: number;
+  end: number;
+  lat: number | null;
+  lon: number | null;
+}
+
+const isLocated = (p: TimedPhoto): p is PhotoPoint => p.lat !== null && p.lon !== null;
+
+/**
+ * Clusters photos that may lack GPS.
+ *
+ * 1. Photos with a location are clustered by time and place exactly as `clusterMeals` does.
+ * 2. Each photo without a location joins the located cluster nearest in time, provided it
+ *    falls within `maxGapMs` of that cluster and keeps its span within `maxSpanMs`. The
+ *    cluster keeps its coordinates.
+ * 3. Remaining unlocated photos are grouped by time alone (gap <= `maxGapMs`, span <=
+ *    `maxSpanMs`) into clusters with no location.
+ *
+ * `minPhotos` applies to the final clusters.
+ */
+export function clusterPhotos(
+  points: readonly TimedPhoto[],
+  config: ClusterConfig = DEFAULT_CLUSTER_CONFIG,
+): AnyCluster[] {
+  const located = clusterMeals(points.filter(isLocated), { ...config, minPhotos: 1 }) as AnyCluster[];
+  const unlocated = points
+    .filter((p) => !isLocated(p))
+    .sort((a, b) => a.date - b.date || a.id.localeCompare(b.id));
+
+  const timeOnly: AnyCluster[] = [];
+  for (const p of unlocated) {
+    let best: AnyCluster | undefined;
+    let bestGap = Infinity;
+    for (const c of located) {
+      const gap = p.date < c.start ? c.start - p.date : p.date > c.end ? p.date - c.end : 0;
+      const span = Math.max(c.end, p.date) - Math.min(c.start, p.date);
+      if (gap <= config.maxGapMs && span <= config.maxSpanMs && gap < bestGap) {
+        best = c;
+        bestGap = gap;
+      }
+    }
+    if (best) {
+      best.photos.push(p);
+      best.start = Math.min(best.start, p.date);
+      best.end = Math.max(best.end, p.date);
+      continue;
+    }
+
+    const open = timeOnly.find(
+      (c) => p.date - c.end <= config.maxGapMs && p.date - c.start <= config.maxSpanMs,
+    );
+    if (open) {
+      open.photos.push(p);
+      open.end = p.date;
+    } else {
+      timeOnly.push({ photos: [p], start: p.date, end: p.date, lat: null, lon: null });
+    }
+  }
+
+  return [...located, ...timeOnly]
+    .filter((c) => c.photos.length >= config.minPhotos)
+    .sort((a, b) => a.start - b.start);
+}

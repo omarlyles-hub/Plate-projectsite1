@@ -22,3 +22,14 @@ export function roundCoord(value: number, decimals = 4): number {
   const f = 10 ** decimals;
   return Math.round(value * f) / f;
 }
+
+/** Like haversineM but tolerates missing coordinates: unknown distance is Infinity. */
+export function distanceOrInfinity(
+  lat1: number | null,
+  lon1: number | null,
+  lat2: number | null,
+  lon2: number | null,
+): number {
+  if (lat1 === null || lon1 === null || lat2 === null || lon2 === null) return Infinity;
+  return haversineM(lat1, lon1, lat2, lon2);
+}

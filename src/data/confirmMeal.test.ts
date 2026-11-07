@@ -105,6 +105,27 @@ describe('confirmCandidate', () => {
     expect(f.venues[0].mapItemId).toBeNull();
   });
 
+  it('saves a venue with no location when the photos had no GPS', async () => {
+    const f = fakeRepo();
+    const unlocated: MealCandidate = { ...card, latitude: null, longitude: null, candidates: [] };
+    await confirmCandidate(f.repo, unlocated, { kind: 'manual', name: 'Corner Spot' }, { rating: 'good', note: '', dishes: [] }, ids);
+    expect(f.venues[0].latitude).toBeNull();
+    expect(f.venues[0].longitude).toBeNull();
+    expect(f.venues[0].neighborhood).toBe('');
+  });
+
+  it('reuses a venue by name when either side has no location', async () => {
+    const located: Venue = {
+      id: 'v1', name: 'Corner Spot', address: '', latitude: LAT, longitude: LON,
+      mapItemId: null, neighborhood: 'West Village',
+    };
+    const f = fakeRepo([located]);
+    const unlocated: MealCandidate = { ...card, latitude: null, longitude: null, candidates: [] };
+    await confirmCandidate(f.repo, unlocated, { kind: 'manual', name: 'corner spot' }, { rating: 'good', note: '', dishes: [] }, ids);
+    expect(f.venues).toHaveLength(1);
+    expect(f.meals[0].venueId).toBe('v1');
+  });
+
   it('rejects an empty venue name', async () => {
     const f = fakeRepo();
     await expect(

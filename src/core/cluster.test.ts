@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clusterMeals, DEFAULT_CLUSTER_CONFIG, type PhotoPoint } from './cluster';
+import { clusterMeals, clusterPhotos, DEFAULT_CLUSTER_CONFIG, type PhotoPoint, type TimedPhoto } from './cluster';
 import { haversineM, metresToLatDegrees } from './geo';
 
 const HOUR = 3_600_000;
@@ -130,5 +130,62 @@ describe('clusterMeals: structure', () => {
     );
     expect(out).toHaveLength(1);
     expect(out[0].photos).toHaveLength(2);
+  });
+});
+
+describe('clusterPhotos: photos without a location', () => {
+  const noGps = (id: string, ms: number): TimedPhoto => ({ id, date: T0 + ms, lat: null, lon: null });
+
+  it('behaves like clusterMeals when every photo has a location', () => {
+    const pts = [photo('a', 0), photo('b', HOUR), photo('c', 10 * HOUR)];
+    expect(clusterPhotos(pts).map((c) => c.photos.map((p) => p.id))).toEqual(
+      clusterMeals(pts).map((c) => c.photos.map((p) => p.id)),
+    );
+  });
+
+  it('attaches an unlocated photo to a located meal that is within the time gap', () => {
+    const out = clusterPhotos([photo('a', 0), noGps('n', 2 * HOUR)]);
+    expect(out).toHaveLength(1);
+    expect(out[0].photos.map((p) => p.id)).toEqual(['a', 'n']);
+    expect(out[0].lat).not.toBeNull();
+  });
+
+  it('joins at exactly the gap and splits just beyond it', () => {
+    expect(clusterPhotos([photo('a', 0), noGps('n', 3 * HOUR)])).toHaveLength(1);
+    expect(clusterPhotos([photo('a', 0), noGps('n', 3 * HOUR + 1000)])).toHaveLength(2);
+  });
+
+  it('chooses the located meal nearest in time', () => {
+    const out = clusterPhotos([photo('early', 0, 0), photo('late', 5 * HOUR, 500), noGps('n', 4 * HOUR)]);
+    const withN = out.find((c) => c.photos.some((p) => p.id === 'n'))!;
+    expect(withN.photos.map((p) => p.id)).toContain('late');
+  });
+
+  it('does not stretch a located meal beyond the max span', () => {
+    // Located meal spans 5.5 h; attaching a photo 2.5 h after its end would make it 8 h.
+    const out = clusterPhotos([photo('a', 0), photo('b', 2.7 * HOUR), photo('c', 5.4 * HOUR), noGps('n', 7.9 * HOUR)]);
+    expect(out).toHaveLength(2);
+    expect(out.find((c) => c.lat === null)?.photos.map((p) => p.id)).toEqual(['n']);
+  });
+
+  it('groups remaining unlocated photos by time into location-less clusters', () => {
+    const out = clusterPhotos([noGps('a', 0), noGps('b', HOUR), noGps('c', 10 * HOUR)]);
+    expect(out).toHaveLength(2);
+    expect(out[0].photos.map((p) => p.id)).toEqual(['a', 'b']);
+    expect(out[0].lat).toBeNull();
+    expect(out[0].lon).toBeNull();
+    expect(out[1].photos.map((p) => p.id)).toEqual(['c']);
+  });
+
+  it('caps time-only clusters at the max span', () => {
+    const out = clusterPhotos([noGps('a', 0), noGps('b', 2.5 * HOUR), noGps('c', 5 * HOUR), noGps('d', 7 * HOUR)]);
+    expect(out).toHaveLength(2);
+    expect(out[1].photos.map((p) => p.id)).toEqual(['d']);
+  });
+
+  it('returns clusters ordered by start time and handles empty input', () => {
+    expect(clusterPhotos([])).toEqual([]);
+    const out = clusterPhotos([noGps('n', 0), photo('a', 20 * HOUR)]);
+    expect(out.map((c) => c.start)).toEqual([T0, T0 + 20 * HOUR]);
   });
 });

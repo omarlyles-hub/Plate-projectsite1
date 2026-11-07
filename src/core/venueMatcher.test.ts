@@ -132,6 +132,14 @@ describe('matchVenue: fallback when MapKit-style lookup returns nothing', () => 
     expect(r.source).toBe('known');
   });
 
+  it('ignores logged venues that have no location when proposing nearby places', async () => {
+    const r = await matchVenue(LAT, LON, stub([]), {
+      lookupEnabled: true,
+      knownVenues: [known('nowhere', 'No Location Cafe', { latitude: null, longitude: null })],
+    });
+    expect(r.source).toBe('unknown');
+  });
+
   it('pads sparse search results with nearby logged venues', async () => {
     const r = await matchVenue(LAT, LON, stub([cand('New Spot', 10)]), {
       lookupEnabled: true,

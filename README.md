@@ -37,9 +37,15 @@ Demo photos are generated placeholder tiles, so nothing real is involved.
 
 ### Try it with real photos
 
-Import tab → **Choose photos** (or **Choose a folder** in Chromium). Only photos that carry GPS
-data and were taken in the last 12 months are considered. The first scan downloads a
+Import tab → **Choose photos** (or **Choose a folder** in Chromium). Photos from the last 12
+months that look like food are kept, with or without GPS. The first scan downloads a
 food-recognition model once (see Privacy).
+
+- **With GPS:** clustered by time and place, and the restaurant is proposed from OpenStreetMap.
+- **Without GPS:** a photo taken within 3 hours of a located meal joins that meal; otherwise
+  photos are grouped by time alone into a card with no suggestions, and you type the venue name
+  (previously used venues autocomplete). A photo with no capture date uses the file's modified
+  date, which the import summary flags.
 
 ## Features
 
@@ -81,11 +87,13 @@ src/
 
 ### Clustering (`core/cluster.ts`)
 
-Photos are sorted by time. Each photo joins the **nearest open cluster**: one whose newest photo
+Photos with a location are sorted by time. Each photo joins the **nearest open cluster**: one whose newest photo
 is within 3 hours, whose running centroid is within 100 m, and whose total span stays within
 6 hours. Otherwise it starts a new cluster. Comparing against every open cluster (not just the
 latest) keeps interleaved places apart, e.g. restaurant, then the bar next door, then back at
-the table. Boundaries are inclusive. All thresholds live in `DEFAULT_CLUSTER_CONFIG`.
+the table. Boundaries are inclusive. All thresholds live in `DEFAULT_CLUSTER_CONFIG`. Photos with no location are then attached to the
+located meal nearest in time (within the same gap and span limits), or grouped by time alone
+(`clusterPhotos`).
 
 ### Venue matching (`core/venueMatcher.ts`)
 
@@ -114,7 +122,9 @@ To turn it on:
 2. Apply the schema in `supabase/migrations/20261107000000_init_plate.sql` (SQL editor, or
    `supabase db push`). It creates `venues`, `meals`, `dishes` and `meal_candidates`, each with
    a `user_id` and an owner-only row-level-security policy.
-3. In the Supabase dashboard go to Authentication → Sign In / Providers → Email. For a
+3. Also apply `supabase/migrations/20261107010000_allow_unlocated_places.sql`, which lets venues
+   and review cards have no coordinates (needed for photos without GPS).
+4. In the Supabase dashboard go to Authentication → Sign In / Providers → Email. For a
    frictionless prototype, turn **Confirm email** off (otherwise new accounts must click an
    emailed link before signing in; the app handles both cases).
 
