@@ -1,0 +1,10 @@
+{
+  "name": "Plate",
+  "short_name": "Plate",
+  "description": "A dining journal built from your photos.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#faf6f0",
+  "theme_color": "#b4472b",
+  "icons": [{ "src": "/icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
