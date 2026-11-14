@@ -128,6 +128,22 @@ To turn it on:
    frictionless prototype, turn **Confirm email** off (otherwise new accounts must click an
    emailed link before signing in; the app handles both cases).
 
+#### Password recovery
+
+Sign-in screen → **Forgot password?** emails a reset link. Following it opens the app on a
+"New password" screen; saving signs the user in. An expired or already-used link shows a
+message and sends the user back to the sign-in screen. For this to work:
+
+- **Redirect URLs:** in Authentication → URL Configuration, add every origin you run the app
+  on to *Redirect URLs* (e.g. `http://localhost:5173`, and your phone-testing address such as
+  `http://192.168.1.180:5173`, plus your production URL). Otherwise Supabase sends the link to
+  the *Site URL* instead of this app.
+- **Email delivery:** Supabase's built-in email sender is for development: it is heavily
+  rate-limited and may only deliver to project team members. Configure your own SMTP provider
+  (Authentication → SMTP Settings) before real users rely on it.
+- The app uses Supabase's implicit flow, where the recovery token arrives in the URL fragment;
+  the PKCE flow needs a secure (HTTPS) context, which plain-HTTP LAN testing doesn't have.
+
 Row-level security is what protects the data: the publishable key is public by design and is
 useless without a signed-in user's session.
 

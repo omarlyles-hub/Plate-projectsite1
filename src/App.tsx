@@ -1,6 +1,7 @@
 import type { Session } from '@supabase/supabase-js';
 import { useMemo, useState } from 'react';
 import { AuthScreen } from './auth/AuthScreen';
+import { ResetPasswordScreen } from './auth/ResetPasswordScreen';
 import { useAuth, type AuthApi } from './auth/useAuth';
 import { HybridRepository } from './data/hybridRepo';
 import { IdbRepository } from './data/idbRepo';
@@ -150,6 +151,8 @@ function AuthGate() {
       return null;
     case 'signed-out':
       return <AuthScreen auth={auth} />;
+    case 'recovery':
+      return <ResetPasswordScreen auth={auth} email={status.session.user.email} />;
     case 'signed-in':
       return <CloudApp auth={auth} session={status.session} />;
     case 'local-only':
