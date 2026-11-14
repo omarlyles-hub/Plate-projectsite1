@@ -1,14 +1,40 @@
+<p align="center">
+  <img src="docs/cover.png" alt="Plate: a dining journal built from your photos" width="100%">
+</p>
+
 # Plate
 
 A dish-level dining journal built retroactively from your photos. Pick photos from the last
-12 months and Plate finds the food shots with a location, groups them into meals, proposes the
-restaurant, and lets you confirm each one with a swipe. Later it resurfaces what you loved and
-answers "where should I eat near X?" using only your own log.
+12 months and Plate finds the food shots, groups them into meals, proposes the restaurant when a
+photo has a location, and lets you confirm each one with a swipe. Later it resurfaces what you
+loved and answers "where should I eat near X?" using only your own log.
 
 This is a React + Vite + TypeScript app that works fully on-device by default. When Supabase
 is configured (see [Supabase setup](#supabase-setup)), you sign in with email and password and
 your meals, venues, dishes and review queue sync to your own private rows. Photos and
 thumbnails never leave the device.
+
+## Screenshots
+
+<table>
+  <tr>
+    <td align="center" width="20%"><img src="docs/screenshots/today.jpg" alt="Today tab"></td>
+    <td align="center" width="20%"><img src="docs/screenshots/journal.jpg" alt="Journal tab"></td>
+    <td align="center" width="20%"><img src="docs/screenshots/venue.jpg" alt="Venue page with the What did I order last time card"></td>
+    <td align="center" width="20%"><img src="docs/screenshots/recommend.jpg" alt="Recommend tab"></td>
+    <td align="center" width="20%"><img src="docs/screenshots/triage.jpg" alt="Swipe triage card"></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Today</b><br><sub>One year ago, loved nearby, dishes to order again</sub></td>
+    <td align="center"><b>Journal</b><br><sub>Every meal, searchable by venue or dish</sub></td>
+    <td align="center"><b>Venue page</b><br><sub>"What did I order last time?"</sub></td>
+    <td align="center"><b>Recommend</b><br><sub>Filters, results from your own log, one-tap share</sub></td>
+    <td align="center"><b>Triage</b><br><sub>Swipe to confirm, skip, or dismiss</sub></td>
+  </tr>
+</table>
+
+<sub>Screenshots use the built-in demo mode, which loads fictional restaurants and generated
+placeholder photos.</sub>
 
 ## Setup
 

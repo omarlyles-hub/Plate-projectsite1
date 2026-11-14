@@ -80,7 +80,7 @@ const MEALS: MealSeed[] = [
   { venue: 11, daysAgo: 128, rating: 'loved', price: 2, dishes: [['Lamb seekh', true], ['Garlic naan', true]], photos: 2 },
   { venue: 12, daysAgo: 34, rating: 'good', price: 1, dishes: [['Concha', true], ['Cortado', false]], photos: 1 },
   { venue: 13, daysAgo: 250, rating: 'good', price: 3, dishes: [['Wild mushroom risotto', true]], photos: 2 },
-  { venue: 14, daysAgo: 3, rating: 'meh', price: 2, dishes: [['Smash burger', false]], photos: 1 },
+  { venue: 14, daysAgo: 6, rating: 'meh', price: 2, dishes: [['Smash burger', false]], photos: 1 },
   { venue: 15, daysAgo: 88, rating: 'loved', price: 1, with: 'Mom', dishes: [['Lamb skewers', true], ['Cold sesame noodles', true]], photos: 3 },
 ];
 
