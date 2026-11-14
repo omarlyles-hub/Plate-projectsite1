@@ -1,5 +1,9 @@
 import type { Session } from '@supabase/supabase-js';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type CSSProperties } from 'react';
+import importIcon from './assets/nav/import.svg';
+import journalIcon from './assets/nav/journal.svg';
+import recommendIcon from './assets/nav/recommend.svg';
+import todayIcon from './assets/nav/today.svg';
 import { AuthScreen } from './auth/AuthScreen';
 import { ResetPasswordScreen } from './auth/ResetPasswordScreen';
 import { useAuth, type AuthApi } from './auth/useAuth';
@@ -20,11 +24,14 @@ import { go, useRoute } from './ui/router';
 
 type TabId = 'today' | 'journal' | 'recommend' | 'import';
 
-const TABS: { id: TabId; label: string; icon: string }[] = [
-  { id: 'today', label: 'Today', icon: 'M12 3v2m0 14v2M5.6 5.6l1.4 1.4m10 10 1.4 1.4M3 12h2m14 0h2M5.6 18.4 7 17m10-10 1.4-1.4M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z' },
-  { id: 'journal', label: 'Journal', icon: 'M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3V4zm0 13a3 3 0 0 1 3-3h11M9 8h6' },
-  { id: 'recommend', label: 'Recommend', icon: 'M12 21s-7-5.2-7-11a7 7 0 1 1 14 0c0 5.8-7 11-7 11zm0-8.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z' },
-  { id: 'import', label: 'Import', icon: 'M12 15V4m0 0L8 8m4-4 4 4M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3' },
+// Icons are the SVG files exported from the Figma "Tab bar" component. They are drawn as CSS
+// masks so the active/inactive colors come from the theme tokens (and follow dark mode).
+// The thumbs-up glyph is 18.15px inside its 22px slot in the design; the rest fill the slot.
+const TABS: { id: TabId; label: string; icon: string; iconSize: string }[] = [
+  { id: 'today', label: 'Today', icon: todayIcon, iconSize: '22px' },
+  { id: 'journal', label: 'Journal', icon: journalIcon, iconSize: '22px' },
+  { id: 'recommend', label: 'Recommend', icon: recommendIcon, iconSize: '18.15px' },
+  { id: 'import', label: 'Import', icon: importIcon, iconSize: '22px' },
 ];
 
 function TabBar({ active }: { active: TabId | null }) {
@@ -40,9 +47,11 @@ function TabBar({ active }: { active: TabId | null }) {
             aria-current={active === t.id ? 'page' : undefined}
             onClick={() => go(t.id)}
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d={t.icon} />
-            </svg>
+            <span
+              className="tab-icon"
+              aria-hidden="true"
+              style={{ '--icon': `url("${t.icon}")`, '--icon-size': t.iconSize } as CSSProperties}
+            />
             {t.label}
             {t.id === 'import' && count > 0 && <span className="badge" aria-label={`${count} to review`}>{count}</span>}
           </button>
