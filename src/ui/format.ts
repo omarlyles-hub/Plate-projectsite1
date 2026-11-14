@@ -1,3 +1,5 @@
+import { newUuid } from '../core/uuid';
+
 const dayFmt = new Intl.DateTimeFormat(undefined, {
   weekday: 'short',
   month: 'short',
@@ -14,5 +16,5 @@ export const formatMonth = (ms: number) => monthFmt.format(ms);
 export const priceLabel = (p: number | undefined) => (p ? '$'.repeat(p) : '');
 
 export function newId(): string {
-  return crypto.randomUUID();
+  return newUuid();
 }

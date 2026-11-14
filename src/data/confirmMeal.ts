@@ -1,5 +1,6 @@
 import { distanceOrInfinity } from '../core/geo';
 import { nearestNeighborhood } from '../core/neighborhoods';
+import { newUuid } from '../core/uuid';
 import type {
   Dish,
   Meal,
@@ -68,7 +69,7 @@ export async function confirmCandidate(
   card: MealCandidate,
   choice: VenueChoice,
   enrichment: Enrichment,
-  newId: () => string = () => crypto.randomUUID(),
+  newId: () => string = newUuid,
 ): Promise<string> {
   const venues = await repo.listVenues();
 

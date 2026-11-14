@@ -1,4 +1,5 @@
 import { clusterPhotos, type TimedPhoto } from '../core/cluster';
+import { newUuid } from '../core/uuid';
 import { matchVenue, type VenueSource } from '../core/venueMatcher';
 import type { MealCandidate } from '../core/types';
 import type { Repository } from '../data/repo';
@@ -67,7 +68,7 @@ export async function runImport(
   const now = deps.now?.() ?? Date.now();
   const since = lookbackStart(now);
   const threshold = deps.foodThreshold ?? IMPORT_CONFIG.foodThreshold;
-  const newId = deps.newId ?? (() => crypto.randomUUID());
+  const newId = deps.newId ?? newUuid;
 
   const p: ImportProgress = {
     phase: 'reading',
