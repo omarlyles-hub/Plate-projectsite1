@@ -136,7 +136,7 @@ message and sends the user back to the sign-in screen. For this to work:
 
 - **Redirect URLs:** in Authentication → URL Configuration, add every origin you run the app
   on to *Redirect URLs* (e.g. `http://localhost:5173`, and your phone-testing address such as
-  `http://192.168.1.180:5173`, plus your production URL). Otherwise Supabase sends the link to
+  `http://<your-computer-LAN-IP>:5173`, plus your production URL). Otherwise Supabase sends the link to
   the *Site URL* instead of this app.
 - **Email delivery:** Supabase's built-in email sender is for development: it is heavily
   rate-limited and may only deliver to project team members. Configure your own SMTP provider
